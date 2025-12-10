@@ -22,7 +22,6 @@ The UI is clean, responsive, and built for fast daily planning.
 | 🗂️ Task management | ✔️ | Create, view, update, delete tasks |
 | 🤖 AI task generation | ✔️ | Converts plain text into actionable structured tasks |
 | 📦 MongoDB storage | ✔️ | Persistent storage using Mongoose |
-| 🧪 Input validation | ✔️ | Zod validation ensures safe + predictable AI output |
 | 📱 Responsive UI | ✔️ | Works across laptop & mobile |
 
 ---
