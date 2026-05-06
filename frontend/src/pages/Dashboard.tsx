@@ -19,6 +19,7 @@ export default function Dashboard({ token, user, onLogout }: Props) {
   const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [showAI, setShowAI] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('all');
@@ -39,9 +40,17 @@ export default function Dashboard({ token, user, onLogout }: Props) {
 
   async function addTask(task: Partial<Task>) {
     try {
-      const created = await createTask(task, token);
-      setTasks(prev => [created, ...prev]);
-    } catch (e) { alert('Failed to create'); }
+      if (editingTask) {
+        // Update existing task
+        const updated = await apiUpdate(editingTask._id, task, token);
+        setTasks(prev => prev.map(t => t._id === editingTask._id ? updated : t));
+        setEditingTask(null);
+      } else {
+        // Create new task
+        const created = await createTask(task, token);
+        setTasks(prev => [created, ...prev]);
+      }
+    } catch (e) { alert('Failed to save task'); }
   }
 
   async function updateTask(id: string, body: Partial<Task>) {
@@ -57,6 +66,11 @@ export default function Dashboard({ token, user, onLogout }: Props) {
       await apiDelete(id, token);
       setTasks(prev => prev.filter(t => t._id !== id));
     } catch (e) { alert('Failed to delete'); }
+  }
+
+  function editTask(task: Task) {
+    setEditingTask(task);
+    setShowAdd(true);
   }
 
   async function onGenerateAI(prompt: string) {
@@ -152,7 +166,7 @@ export default function Dashboard({ token, user, onLogout }: Props) {
                       <span className="hidden sm:inline">AI Assist</span>
                     </button>
                     <button
-                      onClick={() => setShowAdd(true)}
+                      onClick={() => { setEditingTask(null); setShowAdd(true); }}
                       className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                     >
                       <Plus className="h-4 w-4 mr-1" />
@@ -223,7 +237,7 @@ export default function Dashboard({ token, user, onLogout }: Props) {
               </div>
               <div className="px-3 py-2 space-y-1">
                 <button
-                  onClick={() => { setShowAdd(true); setMobileMenuOpen(false); }}
+                  onClick={() => { setEditingTask(null); setShowAdd(true); setMobileMenuOpen(false); }}
                   className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -356,7 +370,7 @@ export default function Dashboard({ token, user, onLogout }: Props) {
                 <div className="mt-6">
                   <button
                     type="button"
-                    onClick={() => setShowAdd(true)}
+                    onClick={() => { setEditingTask(null); setShowAdd(true); }}
                     className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   >
                     <Plus className="-ml-1 mr-2 h-5 w-5" />
@@ -368,7 +382,7 @@ export default function Dashboard({ token, user, onLogout }: Props) {
               <ul className="divide-y divide-gray-200">
                 {filteredTasks.map((task) => (
                   <li key={task._id}>
-                    <TaskCard task={task} onUpdate={updateTask} onDelete={deleteTask} />
+                    <TaskCard task={task} onUpdate={updateTask} onDelete={deleteTask} onEdit={editTask} />
                   </li>
                 ))}
               </ul>
@@ -378,7 +392,7 @@ export default function Dashboard({ token, user, onLogout }: Props) {
       </main>
 
       {/* Modals */}
-      {showAdd && <AddTaskModal onClose={() => setShowAdd(false)} onSave={addTask} />}
+      {showAdd && <AddTaskModal onClose={() => { setShowAdd(false); setEditingTask(null); }} onSave={addTask} editingTask={editingTask} />}
       {showAI && <AIAssistModal token={token} onClose={() => setShowAI(false)} onGenerate={onGenerateAI} />}
     </div>
   );

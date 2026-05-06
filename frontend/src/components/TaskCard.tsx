@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Trash2, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
+import { Check, Trash2, ChevronDown, ChevronUp, Calendar, Edit } from 'lucide-react';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import type { Task } from '../types';
 
@@ -7,9 +7,10 @@ type Props = {
   task: Task;
   onUpdate: (id: string, body: Partial<Task>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onEdit: (task: Task) => void;
 };
 
-export default function TaskCard({ task, onUpdate, onDelete }: Props) {
+export default function TaskCard({ task, onUpdate, onDelete, onEdit }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
@@ -28,6 +29,11 @@ export default function TaskCard({ task, onUpdate, onDelete }: Props) {
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowDeleteModal(true);
+  };
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEdit(task);
   };
 
   const confirmDelete = async () => {
@@ -105,6 +111,13 @@ export default function TaskCard({ task, onUpdate, onDelete }: Props) {
               <span>{new Date(task.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
             </div>
           )}
+          <button
+            onClick={handleEdit}
+            className="p-1.5 rounded-lg text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
+            aria-label="Edit task"
+          >
+            <Edit className="w-4 h-4" />
+          </button>
           <button
             onClick={handleDelete}
             disabled={isDeleting}

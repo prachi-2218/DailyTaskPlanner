@@ -4,13 +4,14 @@ import type { Task } from '../types';
 type Props = {
   onClose: () => void;
   onSave: (task: Partial<Task>) => Promise<void> | void;
+  editingTask?: Task | null;
 };
 
-export default function AddTaskModal({ onClose, onSave }: Props) {
-  const [title, setTitle] = useState('');
-  const [desc, setDesc] = useState('');
-  const [priority, setPriority] = useState<'low'|'medium'|'high'|'urgent'>('medium');
-  const [dueDate, setDueDate] = useState<string>('');
+export default function AddTaskModal({ onClose, onSave, editingTask }: Props) {
+  const [title, setTitle] = useState(editingTask?.title || '');
+  const [desc, setDesc] = useState(editingTask?.description || '');
+  const [priority, setPriority] = useState(editingTask?.priority || 'medium');
+  const [dueDate, setDueDate] = useState(editingTask?.dueDate ? new Date(editingTask.dueDate).toISOString().split('T')[0] : '');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -47,7 +48,7 @@ export default function AddTaskModal({ onClose, onSave }: Props) {
         className="bg-white rounded-lg p-6 w-full max-w-md z-10 shadow-xl"
         onClick={e => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold mb-4">Add Task</h3>
+        <h3 className="text-lg font-semibold mb-4">{editingTask ? 'Edit Task' : 'Add Task'}</h3>
         <form onSubmit={submit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Title*</label>
@@ -111,7 +112,7 @@ export default function AddTaskModal({ onClose, onSave }: Props) {
               className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Saving...' : 'Save Task'}
+              {isSubmitting ? 'Saving...' : (editingTask ? 'Update Task' : 'Save Task')}
             </button>
           </div>
         </form>
