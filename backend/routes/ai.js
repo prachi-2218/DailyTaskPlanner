@@ -2,6 +2,7 @@
 const express = require('express');
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
 const auth = require('../utils/authMiddleware');
+const ragService = require('../utils/ragService');
 
 const router = express.Router();
 router.use(auth);
@@ -47,7 +48,12 @@ router.post('/generate-task', async (req, res) => {
       return res.status(500).json({ message: 'GEMINI_MODEL not configured. Available models:', models });
     }
 
-    const inputText = buildGeneratePrompt(req.user, prompt);
+    // Use RAG service to enhance the prompt with relevant context
+    const { enhancedPrompt, hasContext, contextTasks } = await ragService.enhancePromptWithRAG(
+      req.user._id,
+      prompt,
+      req.user
+    );
 
     // Use generateContent endpoint (supportedGenerationMethods: generateContent)
     const modelId = modelName.replace('models/', '');
@@ -58,7 +64,7 @@ router.post('/generate-task', async (req, res) => {
     {
       role: "user",
       parts: [{
-        text: inputText
+        text: enhancedPrompt
       }]
     }
   ],
@@ -66,7 +72,7 @@ router.post('/generate-task', async (req, res) => {
     temperature: 0.2,
     topP: 0.9,
     topK: 40,
-    maxOutputTokens: 800,
+    maxOutputTokens: 2048,
     candidateCount: 1
   },
   safetySettings: [
@@ -142,15 +148,75 @@ router.post('/generate-task', async (req, res) => {
       generated = raw;
     }
 
-    // Find first JSON object in generated text
+    // Find and parse JSON object from generated text
     try {
-      const match = generated.match(/\{[\s\S]*\}/);
-      const jsonStr = match ? match[0] : generated;
+      let jsonStr = generated;
+      
+      // Try to extract JSON from markdown code blocks
+      const codeBlockMatch = generated.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (codeBlockMatch) {
+        jsonStr = codeBlockMatch[1];
+      } else {
+        // Try to find first JSON object
+        const match = generated.match(/\{[\s\S]*\}/);
+        jsonStr = match ? match[0] : generated;
+      }
+      
+      // Try to fix common JSON issues
+      jsonStr = jsonStr.trim();
+      
+      // Remove trailing commas before closing braces/brackets
+      jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+      
+      // Try to complete incomplete JSON
+      if (!jsonStr.endsWith('}')) {
+        // Count open vs close braces to try to complete
+        const openBraces = (jsonStr.match(/\{/g) || []).length;
+        const closeBraces = (jsonStr.match(/\}/g) || []).length;
+        const missingBraces = openBraces - closeBraces;
+        
+        if (missingBraces > 0) {
+          jsonStr += '}'.repeat(missingBraces);
+        }
+      }
+      
       const parsed = JSON.parse(jsonStr);
-      return res.json({ ai: parsed });
+      return res.json({ 
+        ai: parsed,
+        ragContext: {
+          hasContext,
+          contextTasks: contextTasks || []
+        }
+      });
     } catch (err) {
       console.error('Failed to parse AI-generated JSON:', err);
-      return res.status(500).json({ message: 'Invalid model output; expected JSON', rawGenerated: generated });
+      console.error('Generated text:', generated);
+      
+      // Try to return a basic fallback response
+      try {
+        const fallbackResponse = {
+          title: "Task Generation Failed",
+          description: "There was an issue generating the task. Please try again.",
+          priority: "medium",
+          estimatedEffortHours: 1,
+          subtasks: ["Try generating the task again"]
+        };
+        
+        return res.json({ 
+          ai: fallbackResponse,
+          ragContext: {
+            hasContext,
+            contextTasks: contextTasks || []
+          },
+          warning: "AI response was malformed, using fallback"
+        });
+      } catch (fallbackErr) {
+        return res.status(500).json({ 
+          message: 'Invalid model output; expected JSON', 
+          rawGenerated: generated,
+          error: err.message
+        });
+      }
     }
 
   } catch (err) {
